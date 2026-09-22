@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>フローチャートエディタ</title>
+<style id="pageStyle">@page{size:A4 portrait;margin:12mm}</style>
+<style>
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#1c2630; --sub:#5b6875; --line:#d3dae1;
+  --accent:#c62f2a; --accent-ink:#ffffff; --chip:#e4e9ee; --err:#b3261e; --focus:#2a6fdb;
+  --grid:#eef1f4;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12171c; --panel:#1b232b; --ink:#e6ebf0; --sub:#9aa7b4; --line:#2d3843;
+    --accent:#e2564f; --chip:#26313b; --err:#ff8a80; --focus:#7fb0ff;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12171c; --panel:#1b232b; --ink:#e6ebf0; --sub:#9aa7b4; --line:#2d3843;
+  --accent:#e2564f; --chip:#26313b; --err:#ff8a80; --focus:#7fb0ff;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:15px/1.6 system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI","Noto Sans JP","Meiryo",sans-serif;
+  display:flex; flex-direction:column;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.bar h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.02em}
+.acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+
+.btn{min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer;font-weight:600}
+.btn:hover{background:var(--chip)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.block{display:block;width:100%}
+.btn.small{min-height:40px;padding:0 12px}
+
+.work{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 12px 12px}
+.left{display:flex;flex-direction:column;min-height:0}
+.right{display:none;flex:1;min-height:0;flex-direction:column}
+.tabs{display:flex;gap:6px;padding-top:8px}
+.tab{flex:1;min-height:44px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--chip);color:var(--sub);font-weight:700;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:inset 0 3px 0 var(--accent)}
+
+.pane,.card{background:var(--panel);border:1px solid var(--line);border-radius:0 0 10px 10px;min-height:0}
+.pane{display:none;flex:1;flex-direction:column}
+.card{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.work[data-view="easy"] .left,.work[data-view="code"] .left{flex:1}
+.work[data-view="easy"] #paneEasy{display:flex}
+.work[data-view="code"] #paneCode{display:flex}
+.work[data-view="view"] .right{display:flex}
+.pbody{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:12px}
+.hint{margin:0;color:var(--sub);font-size:13px;line-height:1.6}
+textarea,input[type=text],select{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;font-size:16px}
+textarea{flex:1;min-height:180px;resize:none;line-height:1.7}
+#code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,"Noto Sans Mono CJK JP",monospace;font-size:15px;white-space:pre;overflow:auto;tab-size:4}
+.row{display:flex;gap:8px;align-items:center}
+.row .grow{flex:1}
+.row select{flex:1}
+.inline{display:flex;align-items:center;gap:6px;white-space:nowrap;color:var(--sub);font-size:14px}
+.inline select{width:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:20px;background:var(--chip);cursor:pointer;font-size:14px;font-weight:600}
+
+.ptool{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ptool .btn{min-width:44px}
+#zoomLabel{min-width:48px;text-align:center;font-variant-numeric:tabular-nums;color:var(--sub);font-size:14px}
+.err{margin:0;padding:10px 12px;border-left:4px solid var(--err);background:color-mix(in srgb,var(--err) 10%,var(--panel));font-size:13px;white-space:pre-wrap;max-height:34%;overflow:auto}
+.stage{
+  flex:1;min-height:0;overflow:auto;padding:12px;background-color:#ffffff;color:#1c2630;
+  background-image:linear-gradient(#eef1f4 1px,transparent 1px),linear-gradient(90deg,#eef1f4 1px,transparent 1px);
+  background-size:20px 20px;
+}
+.stage svg{display:block;margin:0 auto;max-width:none}
+.stage.stale svg{opacity:.4}
+.empty{margin:24px 0;text-align:center;color:#5b6875}
+
+.sheet{position:fixed;inset:0;z-index:10;display:flex;align-items:flex-end;justify-content:center}
+.backdrop{position:absolute;inset:0;background:rgba(0,0,0,.42)}
+.panel{position:relative;width:100%;max-width:520px;max-height:88%;overflow:auto;background:var(--panel);border-radius:14px 14px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+.phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.phead strong{font-size:17px}
+.sheetSec{display:flex;flex-direction:column;gap:10px}
+.sheetSec h3{margin:8px 0 0;font-size:14px;color:var(--sub)}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--sub)}
+.stack{display:flex;flex-direction:column;gap:8px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.item .meta{flex:1;min-width:0}
+.item .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .dt{font-size:12px;color:var(--sub)}
+.opts{border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin:0;display:flex;gap:18px;align-items:center}
+.opts legend{font-size:13px;color:var(--sub);padding:0 4px}
+.opts label,.chk{display:flex;align-items:center;gap:6px;min-height:40px}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#1c2630;color:#fff;padding:10px 16px;border-radius:22px;font-size:14px;z-index:20;transition:opacity .2s,transform .2s;max-width:90%}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+#printRoot{display:none}
+
+@media (min-width:860px){
+  .work{flex-direction:row;gap:12px;padding-top:12px}
+  .tabs{padding-top:0}
+  .left{flex:1;min-width:0}
+  .right{display:flex!important;flex:1.35;min-width:0}
+  #tabView{display:none}
+  .work[data-view="view"] #paneCode{display:flex}
+  .card{border-radius:10px}
+  .sheet{align-items:center}
+  .panel{border-radius:14px}
+}
+
+@media print{
+  body>*:not(#printRoot){display:none!important}
+  html,body{height:auto;background:#fff}
+  :root{padding:0}
+  #printRoot{display:block;background:#fff;color:#000}
+  #printRoot h2{font-size:16pt;margin:0 0 6mm}
+  #printRoot svg{display:block;margin:0 auto;max-width:100%;height:auto}
+}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>フローチャートエディタ</h1>
+  <div class="acts">
+    <button class="btn" data-sheet="save">保存・開く</button>
+    <button class="btn" data-sheet="export">書き出し</button>
+    <button class="btn" data-sheet="print">印刷</button>
+  </div>
+</header>
+
+<div class="work" id="main" data-view="easy">
+  <div class="left">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabEasy" data-view="easy" aria-selected="true">かんたん入力</button>
+      <button class="tab" role="tab" id="tabCode" data-view="code" aria-selected="false">コード</button>
+      <button class="tab" role="tab" id="tabView" data-view="view" aria-selected="false">図</button>
+    </div>
+
+    <section class="pane" id="paneEasy">
+      <div class="pbody">
+        <p class="hint">1行ずつ書いて、「→」でつなぎます。「？」で終わる言葉はひし形（分岐）になります。矢印に言葉を付けるときは「→（はい）次の手順」と書きます。長い言葉は自動で2〜3行に折り返されます。</p>
+        <textarea id="easyText" spellcheck="false" autocapitalize="off" aria-label="かんたん入力"></textarea>
+        <div class="row">
+          <label class="inline">向き
+            <select id="dir"><option value="TD">上から下</option><option value="LR">左から右</option></select>
+          </label>
+          <button class="btn primary grow" id="btnGen">フローチャートを生成</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" id="paneCode">
+      <div class="pbody">
+        <div class="chips" role="toolbar" aria-label="部品を追加">
+          <button class="chip" data-ins="start">開始・終了</button>
+          <button class="chip" data-ins="step">手順</button>
+          <button class="chip" data-ins="decide">分岐</button>
+          <button class="chip" data-ins="arrow">矢印</button>
+          <button class="chip" data-ins="arrowL">ラベル付き矢印</button>
+        </div>
+        <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Mermaidコード"></textarea>
+        <div class="row">
+          <select id="tpl" aria-label="テンプレート"><option value="">テンプレートを選ぶ</option></select>
+          <button class="btn" id="btnUndo" disabled>元に戻す</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="right">
+    <div class="card">
+      <div class="ptool">
+        <button class="btn small" id="zOut" aria-label="縮小">−</button>
+        <span id="zoomLabel">100%</span>
+        <button class="btn small" id="zIn" aria-label="拡大">＋</button>
+        <button class="btn small" id="zFit">全体を表示</button>
+      </div>
+      <p class="err" id="err" hidden role="alert"></p>
+      <div class="stage" id="stage"><p class="empty">読み込み中…</p></div>
+    </div>
+  </section>
+</div>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="backdrop" data-close></div>
+  <div class="panel">
+    <div class="phead"><strong id="sheetTitle"></strong><button class="btn small" data-close>閉じる</button></div>
+
+    <div class="sheetSec" data-sheet="save" hidden>
+      <label class="fld">名前<input id="saveName" type="text" maxlength="60" placeholder="例：点検の流れ"></label>
+      <button class="btn primary block" id="btnSave">いまの内容を保存</button>
+      <p class="hint" id="saveNote" hidden></p>
+      <h3>保存した図</h3>
+      <ul class="list" id="savedList"></ul>
+      <p class="hint" id="savedEmpty">まだ保存した図はありません。</p>
+      <p class="hint">保存した図はこの端末のこのブラウザに残ります。別の端末で使うときは「書き出し」でファイルにしてください。</p>
+    </div>
+
+    <div class="sheetSec" data-sheet="export" hidden>
+      <div class="stack">
+        <button class="btn block" data-exp="png">画像で保存（PNG）</button>
+        <button class="btn block" data-exp="svg">画像で保存（SVG）</button>
+        <button class="btn block" data-exp="txt">コードをテキストで保存</button>
+        <button class="btn block" data-exp="copy">コードをコピー</button>
+        <button class="btn block" id="btnOpenFile">ファイルから開く</button>
+        <p class="hint" id="dlNote" hidden>この端末では保存が使えないことがあります。うまくいかない場合は「コードをコピー」で内容を控えてください。</p>
+      </div>
+      <input type="file" id="fileIn" accept=".txt,.mmd,.md,.mermaid,text/plain" hidden>
+    </div>
+
+    <div class="sheetSec" data-sheet="print" hidden>
+      <label class="fld">図の上に入れる題名（空欄なら入れません）<input id="printTitle" type="text" maxlength="60"></label>
+      <fieldset class="opts">
+        <legend>用紙の向き</legend>
+        <label><input type="radio" name="orient" value="port" checked> 縦</label>
+        <label><input type="radio" name="orient" value="land"> 横</label>
+      </fieldset>
+      <label class="chk"><input type="checkbox" id="onePage" checked> 1ページに収める</label>
+      <button class="btn primary block" id="btnDoPrint">印刷する</button>
+      <p class="hint">印刷画面が開かない場合は、「書き出し」からPNG画像で保存して印刷してください。</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="printRoot" aria-hidden="true"></div>
+
+<script>
+function fcFallback(){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.3/mermaid.min.js';s.onload=function(){window.dispatchEvent(new Event('fc-mermaid'))};document.head.appendChild(s)}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js" onerror="fcFallback()"></script>
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s)};
+var FONT='"Hiragino Sans","Yu Gothic UI","Noto Sans JP","Meiryo",sans-serif';
+var el={
+  code:$('#code'),easy:$('#easyText'),dir:$('#dir'),stage:$('#stage'),err:$('#err'),
+  zoomLabel:$('#zoomLabel'),toast:$('#toast'),main:$('#main'),tpl:$('#tpl'),undo:$('#btnUndo')
+};
+
+/* ---------- テンプレート ---------- */
+var TEMPLATES={
+  flow:{label:'点検の流れ（例）',code:
+'flowchart TD\n'+
+'    A([開始]) --> B[現地に到着・受付]\n'+
+'    B --> C[機器を点検する]\n'+
+'    C --> D{異常あり？}\n'+
+'    D -->|はい| E[不良内容を記録]\n'+
+'    D -->|いいえ| F[点検結果を記録]\n'+
+'    E --> G[修理・交換の見積]\n'+
+'    G --> H[報告書を作成]\n'+
+'    F --> H\n'+
+'    H --> I([終了])\n'},
+  loop:{label:'やり直しのある流れ（例）',code:
+'flowchart LR\n'+
+'    A([開始]) --> B[入力内容を確認]\n'+
+'    B --> C{内容は正しい？}\n'+
+'    C -->|はい| D[登録する]\n'+
+'    C -->|いいえ| E[修正を依頼]\n'+
+'    E --> B\n'+
+'    D --> F([終了])\n'},
+  group:{label:'グループ分けの例',code:
+'flowchart TD\n'+
+'    subgraph 現場\n'+
+'        A[点検する] --> B[写真を撮る]\n'+
+'    end\n'+
+'    subgraph 事務所\n'+
+'        C[報告書を作る] --> D[確認して返送]\n'+
+'    end\n'+
+'    B --> C\n'},
+  blank:{label:'白紙から始める',code:'flowchart TD\n    A([開始]) --> B[手順]\n    B --> C([終了])\n'}
+};
+Object.keys(TEMPLATES).forEach(function(k){
+  var o=document.createElement('option');o.value=k;o.textContent=TEMPLATES[k].label;el.tpl.appendChild(o);
+});
+var EASY_SAMPLE=
+'開始 → 現地に到着 → 機器を点検する → 異常あり？\n'+
+'異常あり？ →（はい）不良内容を記録 → 報告書を作成\n'+
+'異常あり？ →（いいえ）点検結果を記録 → 報告書を作成\n'+
+'報告書を作成 → 終了';
+
+/* ---------- 保存まわり ---------- */
+var store={
+  get:function(k){try{return localStorage.getItem(k)}catch(e){return null}},
+  set:function(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}}
+};
+var draftTimer;
+function saveDraft(){
+  clearTimeout(draftTimer);
+  draftTimer=setTimeout(function(){
+    store.set('fc.draft',JSON.stringify({code:el.code.value,easy:el.easy.value,dir:el.dir.value}));
+  },400);
+}
+var currentName='';
+
+/* ---------- トースト ---------- */
+var toastTimer;
+function toast(msg){
+  el.toast.textContent=msg;el.toast.classList.add('on');
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.toast.classList.remove('on')},2400);
+}
+
+/* ---------- 元に戻す ---------- */
+var hist=[];
+function snapshot(){
+  hist.push(el.code.value);if(hist.length>20)hist.shift();el.undo.disabled=false;
+}
+el.undo.addEventListener('click',function(){
+  if(!hist.length)return;
+  el.code.value=hist.pop();el.undo.disabled=!hist.length;
+  onCodeChange();toast('元に戻しました');
+});
+
+/* ---------- 表示切り替え ---------- */
+function setView(v){
+  el.main.dataset.view=v;
+  document.querySelectorAll('.tab').forEach(function(t){t.setAttribute('aria-selected',String(t.dataset.view===v))});
+  if(v==='view')requestAnimationFrame(applyZoom);
+}
+document.querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){setView(t.dataset.view)})});
+
+/* ---------- かんたん入力 → Mermaid ---------- */
+function isBreak(chars,j){
+  return /[・、,）」】]/.test(chars[j-1])||/[（「【]/.test(chars[j]);
+}
+function wrapLabel(s){
+  var chars=Array.from(s),len=chars.length,MAX=14;
+  if(len<=MAX)return s;
+  var n=Math.ceil(len/MAX),w=Math.ceil(len/n),lines=[],i=0;
+  while(len-i>w+2){
+    var cut=-1;
+    for(var d=0;d<=4&&cut<0;d++){
+      var c1=i+w+d,c2=i+w-d;
+      if(c1<len&&isBreak(chars,c1))cut=c1;
+      else if(c2>i&&isBreak(chars,c2))cut=c2;
+    }
+    if(cut<0)cut=i+w;
+    lines.push(chars.slice(i,cut).join(''));i=cut;
+  }
+  lines.push(chars.slice(i).join(''));
+  return lines.join('<br/>');
+}
+function easyToMermaid(text,dir){
+  var ids=new Map(),nodes=[],edges=[];
+  function nodeFor(label){
+    label=label.trim();if(!label)return null;
+    if(!ids.has(label)){var id='N'+(ids.size+1);ids.set(label,id);nodes.push([id,label]);}
+    return ids.get(label);
+  }
+  text.split(/\r?\n/).forEach(function(raw){
+    var line=raw.trim();
+    if(!line||line.indexOf('#')===0||line.indexOf('//')===0)return;
+    var segs=line.split(/\s*(?:→|->|=>)\s*/);
+    var prev=null;
+    segs.forEach(function(seg,i){
+      seg=seg.trim();var lab='';
+      if(i>0){
+        var m=seg.match(/^[(（]\s*([^)）]*?)\s*[)）]\s*(.*)$/);
+        if(m){lab=m[1];seg=m[2];}
+      }
+      if(!seg)return;
+      var id=nodeFor(seg);
+      if(prev&&id)edges.push([prev,id,lab]);
+      prev=id;
+    });
+  });
+  if(!nodes.length)return '';
+  function esc(s){return s.replace(/"/g,'#quot;')}
+  var out=['flowchart '+dir];
+  nodes.forEach(function(n){
+    var id=n[0],label=n[1],e=esc(wrapLabel(label));
+    if(/^(開始|終了|スタート|ゴール|完了|終わり|start|end)$/i.test(label))out.push('    '+id+'(["'+e+'"])');
+    else if(/[？?]$/.test(label))out.push('    '+id+'{"'+e+'"}');
+    else out.push('    '+id+'["'+e+'"]');
+  });
+  edges.forEach(function(ed){
+    out.push('    '+ed[0]+(ed[2]?' -->|"'+esc(ed[2])+'"| ':' --> ')+ed[1]);
+  });
+  return out.join('\n')+'\n';
+}
+$('#btnGen').addEventListener('click',function(){
+  var code=easyToMermaid(el.easy.value,el.dir.value);
+  if(!code){toast('入力が空です。1行ずつ書いてみてください');return;}
+  snapshot();el.code.value=code;onCodeChange();setView('view');toast('生成しました');
+});
+el.easy.addEventListener('input',saveDraft);
+el.dir.addEventListener('change',saveDraft);
+
+/* ---------- 部品の追加 ---------- */
+function nextId(){
+  var used=new Set(el.code.value.match(/[A-Za-z_][A-Za-z0-9_]*/g)||[]);
+  var i=1;while(used.has('N'+i))i++;return 'N'+i;
+}
+function lastIds(){
+  var found=[];
+  el.code.value.split('\n').forEach(function(l){
+    var m=l.match(/^\s*([A-Za-z_]\w*)\s*(\[|\(|\{|>)/);if(m)found.push(m[1]);
+  });
+  return [found[found.length-2]||'N1',found[found.length-1]||'N2'];
+}
+function buildSnippet(kind){
+  var id=nextId(),ids=lastIds();
+  if(kind==='start')return {t:'    '+id+'([開始])',s:'開始'};
+  if(kind==='step')return {t:'    '+id+'[手順の内容]',s:'手順の内容'};
+  if(kind==='decide')return {t:'    '+id+'{条件は？}',s:'条件は？'};
+  if(kind==='arrow')return {t:'    '+ids[0]+' --> '+ids[1],s:null};
+  return {t:'    '+ids[0]+' -->|はい| '+ids[1],s:'はい'};
+}
+document.querySelectorAll('[data-ins]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var t=el.code,sn=buildSnippet(b.dataset.ins);
+    var pos=t.value.indexOf('\n',t.selectionEnd);if(pos<0)pos=t.value.length;
+    snapshot();
+    t.value=t.value.slice(0,pos)+'\n'+sn.t+t.value.slice(pos);
+    var base=pos+1;t.focus();
+    if(sn.s){var i=sn.t.indexOf(sn.s);t.setSelectionRange(base+i,base+i+sn.s.length)}
+    else t.setSelectionRange(base+sn.t.length,base+sn.t.length);
+    onCodeChange();
+  });
+});
+el.tpl.addEventListener('change',function(){
+  var k=el.tpl.value;if(!k)return;
+  snapshot();el.code.value=TEMPLATES[k].code;el.tpl.value='';
+  onCodeChange();toast('テンプレートを入れました');
+});
+
+/* ---------- 描画 ---------- */
+var ready=false,seq=0,renderTimer,nat={w:0,h:0},zoom=1,fitMode=true;
+function onCodeChange(){
+  saveDraft();clearTimeout(renderTimer);renderTimer=setTimeout(render,250);
+}
+el.code.addEventListener('input',onCodeChange);
+
+function showError(e){
+  var m=(e&&(e.message||e.str))||String(e);
+  m=String(m).replace(/\n{3,}/g,'\n\n').slice(0,500);
+  el.err.hidden=false;
+  el.err.textContent='図にできません。書き方を確認してください。\n'+m;
+  el.stage.classList.add('stale');
+}
+function applyZoom(){
+  var svg=el.stage.querySelector('svg');if(!svg||!nat.w)return;
+  if(fitMode){
+    var avail=Math.max((el.stage.clientWidth||340)-24,120);
+    zoom=Math.min(1.4,avail/nat.w);
+  }
+  svg.setAttribute('width',Math.round(nat.w*zoom));
+  svg.setAttribute('height',Math.round(nat.h*zoom));
+  svg.style.maxWidth='none';
+  el.zoomLabel.textContent=Math.round(zoom*100)+'%';
+}
+async function render(){
+  if(!ready)return;
+  var code=el.code.value,my=++seq;
+  if(!code.trim()){
+    el.stage.classList.remove('stale');el.err.hidden=true;
+    el.stage.innerHTML='<p class="empty">入力すると、ここに図が表示されます。</p>';nat={w:0,h:0};return;
+  }
+  try{
+    await mermaid.parse(code);
+    var r=await mermaid.render('fc'+my,code);
+    if(my!==seq)return;
+    el.stage.innerHTML=r.svg;el.stage.classList.remove('stale');el.err.hidden=true;
+    var svg=el.stage.querySelector('svg'),vb=svg&&svg.viewBox&&svg.viewBox.baseVal;
+    nat=vb&&vb.width?{w:vb.width,h:vb.height}:{w:svg.getBoundingClientRect().width||300,h:svg.getBoundingClientRect().height||200};
+    applyZoom();
+  }catch(e){
+    if(my!==seq)return;
+    document.querySelectorAll('[id^="dfc"]').forEach(function(n){n.remove()});
+    showError(e);
+  }
+}
+function initMermaid(){
+  if(ready||!window.mermaid)return;
+  ready=true;
+  mermaid.initialize({
+    startOnLoad:false,securityLevel:'strict',theme:'base',fontFamily:FONT,htmlLabels:false,
+    flowchart:{htmlLabels:false,useMaxWidth:false,curve:'basis'},
+    themeVariables:{fontFamily:FONT,fontSize:'16px',primaryColor:'#e9eff5',primaryBorderColor:'#38536b',
+      primaryTextColor:'#1c2630',lineColor:'#38536b',secondaryColor:'#f3f6f9',tertiaryColor:'#ffffff',
+      edgeLabelBackground:'#ffffff'}
+  });
+  render();
+}
+if(window.mermaid)initMermaid();
+else{
+  window.addEventListener('fc-mermaid',initMermaid);
+  setTimeout(function(){
+    if(!ready)el.stage.innerHTML='<p class="empty">図を描く部品を読み込めませんでした。通信状況を確認して、開き直してください。</p>';
+  },10000);
+}
+$('#zIn').addEventListener('click',function(){fitMode=false;zoom=Math.min(4,zoom*1.25);applyZoom()});
+$('#zOut').addEventListener('click',function(){fitMode=false;zoom=Math.max(.2,zoom*.8);applyZoom()});
+$('#zFit').addEventListener('click',function(){fitMode=true;applyZoom()});
+window.addEventListener('resize',function(){if(fitMode)applyZoom()});
+
+/* ---------- シート（保存・書き出し・印刷） ---------- */
+function openSheet(name){
+  $('#sheet').hidden=false;
+  document.querySelectorAll('.sheetSec').forEach(function(s){s.hidden=s.dataset.sheet!==name});
+  $('#sheetTitle').textContent={save:'保存・開く',export:'書き出し',print:'印刷'}[name];
+  if(name==='save'){$('#saveName').value=currentName;renderSaved();}
+  if(name==='export')updateExportUI();
+  if(name==='print'&&!$('#printTitle').value)$('#printTitle').value=currentName;
+}
+function closeSheet(){$('#sheet').hidden=true}
+document.querySelectorAll('[data-sheet]').forEach(function(b){
+  if(b.classList.contains('btn'))b.addEventListener('click',function(){openSheet(b.dataset.sheet)});
+});
+document.querySelectorAll('[data-close]').forEach(function(b){b.addEventListener('click',closeSheet)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#sheet').hidden)closeSheet()});
+
+function loadList(){try{return JSON.parse(store.get('fc.saved')||'[]')}catch(e){return []}}
+function persist(list){return store.set('fc.saved',JSON.stringify(list))}
+function renderSaved(){
+  var list=loadList(),ul=$('#savedList');ul.textContent='';
+  $('#savedEmpty').hidden=list.length>0;
+  var probe=store.set('fc.probe','1');
+  $('#saveNote').hidden=probe;
+  if(!probe)$('#saveNote').textContent='この画面では端末内に保存できません。「書き出し」からファイルで保存してください。';
+  list.slice().sort(function(a,b){return b.t-a.t}).forEach(function(it){
+    var li=document.createElement('li');li.className='item';
+    var meta=document.createElement('div');meta.className='meta';
+    var nm=document.createElement('div');nm.className='nm';nm.textContent=it.name;
+    var dt=document.createElement('div');dt.className='dt';
+    dt.textContent=new Date(it.t).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    meta.appendChild(nm);meta.appendChild(dt);
+    var open=document.createElement('button');open.className='btn small';open.textContent='開く';
+    open.addEventListener('click',function(){
+      snapshot();el.code.value=it.code;el.easy.value=it.easy||'';if(it.dir)el.dir.value=it.dir;
+      currentName=it.name;onCodeChange();closeSheet();setView('view');toast('開きました');
+    });
+    var del=document.createElement('button');del.className='btn small';del.textContent='削除';
+    var armed=false;
+    del.addEventListener('click',function(){
+      if(!armed){armed=true;del.textContent='本当に削除';setTimeout(function(){armed=false;del.textContent='削除'},3000);return;}
+      persist(loadList().filter(function(x){return x.id!==it.id}));renderSaved();
+    });
+    li.appendChild(meta);li.appendChild(open);li.appendChild(del);ul.appendChild(li);
+  });
+}
+$('#btnSave').addEventListener('click',function(){
+  var name=$('#saveName').value.trim()||'無題';
+  var list=loadList(),ex=list.filter(function(x){return x.name===name})[0];
+  var rec={id:ex?ex.id:Date.now().toString(36),name:name,code:el.code.value,easy:el.easy.value,dir:el.dir.value,t:Date.now()};
+  if(ex)list[list.indexOf(ex)]=rec;else list.push(rec);
+  if(persist(list)){currentName=name;toast(ex?'上書き保存しました':'保存しました');renderSaved();}
+  else toast('保存できませんでした。「書き出し」をお使いください');
+});
+
+/* ---------- 書き出し ---------- */
+var dl=null;
+try{
+  if(window.claude&&window.claude.use){
+    window.claude.use('downloads').then(function(d){dl=d;updateExportUI()}).catch(function(){});
+  }
+}catch(e){}
+function updateExportUI(){
+  $('#dlNote').hidden=true;
+}
+function safeName(s){return (s||'flowchart').replace(/[\\\/:*?"<>|]/g,'_').slice(0,80)}
+function mimeFor(filename){
+  if(/\.svg$/i.test(filename))return 'image/svg+xml;charset=utf-8';
+  if(/\.txt$/i.test(filename))return 'text/plain;charset=utf-8';
+  return 'application/octet-stream';
+}
+function browserDownload(filename,data){
+  var blob=(data instanceof Blob)?data:new Blob([data],{type:mimeFor(filename)});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download=filename;a.style.display='none';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url)},4000);
+}
+async function saveFile(filename,data){
+  if(dl){
+    try{await dl.save({filename:filename,data:data});toast('保存しました');return;}
+    catch(e){if(e&&e.code==='declined')return;}
+  }
+  try{browserDownload(filename,data);toast('保存しました');}
+  catch(e){toast('保存できませんでした');}
+}
+function getSvg(){
+  var svg=el.stage.querySelector('svg');if(!svg||!nat.w)return null;
+  var pad=16,vb=svg.viewBox.baseVal,c=svg.cloneNode(true),ns='http://www.w3.org/2000/svg';
+  var x=vb.x-pad,y=vb.y-pad,w=vb.width+pad*2,h=vb.height+pad*2;
+  c.setAttribute('xmlns',ns);
+  c.setAttribute('viewBox',x+' '+y+' '+w+' '+h);
+  c.setAttribute('width',Math.ceil(w));c.setAttribute('height',Math.ceil(h));
+  c.removeAttribute('style');
+  var bg=document.createElementNS(ns,'rect');
+  bg.setAttribute('x',x);bg.setAttribute('y',y);bg.setAttribute('width',w);bg.setAttribute('height',h);bg.setAttribute('fill','#ffffff');
+  c.insertBefore(bg,c.firstChild);
+  return {str:'<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(c),w:w,h:h};
+}
+function svgToPng(o){
+  return new Promise(function(res,rej){
+    var img=new Image();
+    img.onload=function(){
+      var sc=Math.min(3,4096/Math.max(o.w,o.h)),cv=document.createElement('canvas');
+      cv.width=Math.round(o.w*sc);cv.height=Math.round(o.h*sc);
+      var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.drawImage(img,0,0,cv.width,cv.height);
+      cv.toBlob(function(b){b?res(b):rej(new Error('blob'))},'image/png');
+    };
+    img.onerror=function(){rej(new Error('img'))};
+    img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(o.str);
+  });
+}
+async function copyCode(){
+  var t=el.code.value;
+  try{await navigator.clipboard.writeText(t);toast('コピーしました');return;}catch(e){}
+  var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;top:0';
+  document.body.appendChild(ta);ta.select();
+  var ok=false;try{ok=document.execCommand('copy')}catch(e){}
+  ta.remove();toast(ok?'コピーしました':'コピーできませんでした');
+}
+document.querySelectorAll('[data-exp]').forEach(function(b){
+  b.addEventListener('click',async function(){
+    var k=b.dataset.exp,base=safeName(currentName);
+    if(k==='copy'){copyCode();return;}
+    if(k==='txt'){saveFile(base+'.txt',el.code.value);return;}
+    var o=getSvg();if(!o){toast('保存できる図がありません');return;}
+    if(k==='svg'){saveFile(base+'.svg',o.str);return;}
+    try{saveFile(base+'.png',await svgToPng(o));}catch(e){toast('画像を作れませんでした。SVGでお試しください')}
+  });
+});
+$('#btnOpenFile').addEventListener('click',function(){$('#fileIn').click()});
+$('#fileIn').addEventListener('change',async function(e){
+  var f=e.target.files&&e.target.files[0];if(!f)return;
+  try{
+    var t=await f.text();snapshot();
+    el.code.value=t.replace(/\r\n/g,'\n');currentName=f.name.replace(/\.[^.]+$/,'');
+    onCodeChange();closeSheet();setView('view');toast('開きました');
+  }catch(err){toast('ファイルを読み込めませんでした')}
+  e.target.value='';
+});
+
+/* ---------- 印刷 ---------- */
+$('#btnDoPrint').addEventListener('click',function(){
+  var svg=el.stage.querySelector('svg');
+  if(!svg||!nat.w){toast('印刷する図がありません');return;}
+  var land=document.querySelector('input[name=orient]:checked').value==='land';
+  var one=$('#onePage').checked,title=$('#printTitle').value.trim();
+  $('#pageStyle').textContent='@page{size:A4 '+(land?'landscape':'portrait')+';margin:12mm}';
+  var root=$('#printRoot');root.textContent='';
+  if(title){var h=document.createElement('h2');h.textContent=title;root.appendChild(h);}
+  var c=svg.cloneNode(true);
+  c.removeAttribute('style');
+  if(one){
+    var pageW=land?297:210,pageH=land?210:297,margin=12*2;
+    var areaW=pageW-margin,areaH=pageH-margin-(title?16:0);
+    var ratio=Math.min(areaW/nat.w,areaH/nat.h);
+    c.setAttribute('width',(nat.w*ratio)+'mm');
+    c.setAttribute('height',(nat.h*ratio)+'mm');
+  }else{
+    c.setAttribute('width',Math.round(nat.w));c.removeAttribute('height');
+    c.style.maxWidth='100%';
+  }
+  root.appendChild(c);
+  closeSheet();
+  setTimeout(function(){
+    try{window.print()}catch(e){toast('この画面では印刷できません。PNG画像で保存して印刷してください')}
+  },150);
+});
+window.addEventListener('afterprint',function(){$('#printRoot').textContent=''});
+
+/* ---------- 起動 ---------- */
+(function boot(){
+  var d=null;try{d=JSON.parse(store.get('fc.draft')||'null')}catch(e){}
+  el.code.value=(d&&d.code)||TEMPLATES.flow.code;
+  el.easy.value=(d&&typeof d.easy==='string'&&d.easy)?d.easy:EASY_SAMPLE;
+  if(d&&d.dir)el.dir.value=d.dir;
+  setView('easy');
+})();
+})();
+</script>
+</body>
+</html>
